@@ -50,12 +50,16 @@ func NewNetGrowl(addr string, application string, notifications []string, passwo
 	}
 }
 
+func write(w io.Writer, data interface{}) os.Error {
+	return binary.Write(w, binary.BigEndian, data)
+}
+
 func (ng *NetGrowl) Register() (err os.Error) {
 	if ng.conn != nil {
 		return ErrRegistered
 	}
 
-	addr, err := net.ResolveUDPAddr(ng.addr)
+	addr, err := net.ResolveUDPAddr("udp", ng.addr)
 	if err != nil {
 		return
 	}
@@ -67,26 +71,26 @@ func (ng *NetGrowl) Register() (err os.Error) {
 
 	payload := bytes.NewBuffer(nil)
 
-	binary.Write(payload, binary.BigEndian, uint8(ProtocolVersion))
-	binary.Write(payload, binary.BigEndian, uint8(TypeRegistration))
-	binary.Write(payload, binary.BigEndian, uint16(len(ng.application)))
+	write(payload, uint8(ProtocolVersion))
+	write(payload, uint8(TypeRegistration))
+	write(payload, uint16(len(ng.application)))
 
 	if ng.notifications != nil {
-		binary.Write(payload, binary.BigEndian, uint8(len(ng.notifications)))
-		binary.Write(payload, binary.BigEndian, uint8(len(ng.notifications)))
+		write(payload, uint8(len(ng.notifications)))
+		write(payload, uint8(len(ng.notifications)))
 		payload.WriteString(ng.application)
 
 		defaultIndex := bytes.NewBuffer(nil)
 		for i, n := range ng.notifications {
 			binary.Write(defaultIndex, binary.BigEndian, uint8(i))
-			binary.Write(payload, binary.BigEndian, uint16(len(n)))
+			write(payload, uint16(len(n)))
 			payload.WriteString(n)
 		}
 
 		io.Copy(payload, defaultIndex)
 	} else {
-		binary.Write(payload, binary.BigEndian, uint8(0))
-		binary.Write(payload, binary.BigEndian, uint8(0))
+		write(payload, uint8(0))
+		write(payload, uint8(0))
 		payload.WriteString(ng.application)
 	}
 
@@ -95,7 +99,7 @@ func (ng *NetGrowl) Register() (err os.Error) {
 	if ng.password != "" {
 		hash.Write([]byte(ng.password))
 	}
-	binary.Write(payload, binary.BigEndian, hash.Sum())
+	write(payload, hash.Sum())
 
 	_, err = ng.conn.Write(payload.Bytes())
 	return
@@ -116,14 +120,14 @@ func (ng *NetGrowl) Notify(name string, title string, description string, priori
 
 	payload := bytes.NewBuffer(nil)
 
-	binary.Write(payload, binary.BigEndian, uint8(ProtocolVersion))
-	binary.Write(payload, binary.BigEndian, uint8(TypeNotification))
+	write(payload, uint8(ProtocolVersion))
+	write(payload, uint8(TypeNotification))
 	payload.WriteByte(uint8(flags))
 	payload.WriteByte(uint8(flags >> 8))
-	binary.Write(payload, binary.BigEndian, uint16(len(name)))
-	binary.Write(payload, binary.BigEndian, uint16(len(title)))
-	binary.Write(payload, binary.BigEndian, uint16(len(description)))
-	binary.Write(payload, binary.BigEndian, uint16(len(ng.application)))
+	write(payload, uint16(len(name)))
+	write(payload, uint16(len(title)))
+	write(payload, uint16(len(description)))
+	write(payload, uint16(len(ng.application)))
 
 	payload.WriteString(name)
 	payload.WriteString(title)
@@ -135,7 +139,7 @@ func (ng *NetGrowl) Notify(name string, title string, description string, priori
 	if ng.password != "" {
 		hash.Write([]byte(ng.password))
 	}
-	binary.Write(payload, binary.BigEndian, hash.Sum())
+	write(payload, hash.Sum())
 
 	_, err = ng.conn.Write(payload.Bytes())
 	return
